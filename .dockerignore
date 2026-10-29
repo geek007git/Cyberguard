@@ -1,0 +1,11 @@
+node_modules
+.npm-cache
+.npm-logs
+.git
+.venv
+.env
+dist
+__pycache__
+**/*.sqlite3*
+tests
+.github
