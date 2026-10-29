@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Literal
 import httpx
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -14,8 +15,10 @@ from .engine import KNOWLEDGE, RULES, retrieve
 from .middleware import BodyLimitMiddleware
 
 DB = Path(os.environ.get('CYBERGUARD_DB', str(Path(__file__).with_name('cyberguard.sqlite3'))))
+ALLOWED_ORIGINS = tuple(filter(None, os.environ.get('CYBERGUARD_ALLOWED_ORIGINS', 'http://127.0.0.1:5173,http://localhost:5173,http://127.0.0.1:8000,http://localhost:8000').split(',')))
 app = FastAPI(title='CyberGuard AI', version='2.0.0')
 app.add_middleware(BodyLimitMiddleware)
+app.add_middleware(CORSMiddleware, allow_origins=ALLOWED_ORIGINS, allow_methods=['GET', 'HEAD', 'OPTIONS', 'POST', 'PATCH'], allow_headers=['Content-Type', 'X-Workspace-Token'])
 AI_SLOTS = asyncio.Semaphore(2)
 
 def authorize(x_workspace_token: str = Header(default='')):
@@ -27,8 +30,7 @@ def authorize(x_workspace_token: str = Header(default='')):
 async def security_headers(request: Request, call_next):
     # Native same-origin requests via Vite/production are supported; unsolicited cross-origin writes are rejected.
     origin = request.headers.get('origin')
-    allowed = set(os.environ.get('CYBERGUARD_ALLOWED_ORIGINS', 'http://127.0.0.1:5173,http://localhost:5173,http://127.0.0.1:8000,http://localhost:8000').split(','))
-    if request.method not in ('GET', 'HEAD', 'OPTIONS') and origin and origin not in allowed:
+    if request.method not in ('GET', 'HEAD', 'OPTIONS') and origin and origin not in ALLOWED_ORIGINS:
         return JSONResponse({'detail': 'This origin is not allowed.'}, status_code=403)
     try:
         length = int(request.headers.get('content-length', '0'))
